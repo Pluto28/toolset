@@ -15,4 +15,4 @@ void print_at_size(FILE *filep, int size);
 int print_line(FILE *filep);
 
 // set things up before starting the program itself
-void start(char *filename);
+void initialize(char *filename);

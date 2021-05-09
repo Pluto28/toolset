@@ -40,7 +40,7 @@ int main(int argc, char **argv)
     // using the argp library
     foldoptions->linelength = 0;
     foldoptions->separator = ' ';
-    foldoptions->maxlength = 20;
+    foldoptions->maxlength = 40;
 
     initialize(argv[1]);
 
