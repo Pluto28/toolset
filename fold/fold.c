@@ -102,7 +102,6 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 // bytes
 int read_word(FILE *filep)
 {
-    //memset(word_buffer, 0, (sizeof(word_buffer) / sizeof(word_buffer[0])));
     int ch, index;
     index = 0;
 
