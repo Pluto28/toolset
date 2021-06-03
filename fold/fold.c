@@ -70,7 +70,6 @@ int parse_opt(int key, char *arg, struct argp_state *state)
         foldargs->separator = ' ';
         break;
     case 'w':
-        printf("%s", arg);
         int width = atoi(arg);
         
         if (width > 0)
@@ -170,7 +169,7 @@ void fold_lines(FILE *filep)
         // if the last character of our word is a newline character, 
         // then we start a new line and the size of the line is reset
         // to 0
-        if (word_buffer[word_size - 1] == '\n')
+        if (word_buffer[--word_size] == '\n')
         {
             folddata->line_length = 0;
         }
@@ -187,20 +186,28 @@ void print_at_max(char *buffer, int offset)
 
     char ch = buffer[buffer_offset];
 
-    for (; ch != '\0'; ++buffer_offset, ++line_offset)
+    for (; ch != '\0'; ++buffer_offset)
     {
-        // start a new line
+
+        ch = buffer[buffer_offset];
+        if (ch != '\n')
+        {
+            putchar(ch);
+        } else {
+            --buffer_offset, --line_offset;
+        }
+
+        line_offset++;
+
+        
         if (line_offset == (foldargs->maxlength))
         {
             line_offset = 0;
             putchar('\n');
         }
-
-        ch = buffer[buffer_offset];
-        putchar(ch);
     }
 
-    // The line offset at which the word ended
+    // Because line_offset starts at 
     folddata->line_length = line_offset;
 }
 
