@@ -188,7 +188,6 @@ void print_at_max(char *buffer, int offset)
 
     for (; ch != '\0'; ++buffer_offset)
     {
-
         ch = buffer[buffer_offset];
         if (ch != '\n')
         {
@@ -198,8 +197,6 @@ void print_at_max(char *buffer, int offset)
         }
 
         line_offset++;
-
-        
         if (line_offset == (foldargs->maxlength))
         {
             line_offset = 0;
