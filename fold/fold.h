@@ -1,18 +1,25 @@
 #include <stdio.h>
+#include <argp.h>
 
-// count the number of characters in the word we are iterating, with space
-// being the separator of the words. Newline characters are ignored
-int count_chars(FILE *filep);
+// amount to which expand the buffer
+#define BUFFER_EXPAND 160
 
-// print at separator that is given with a struct, with
-// size specifying the limit of characters that can be printed
-void print_at_separator(FILE *filep, int size);
+// read a word to the global buffer and return it's size
+int read_word(FILE *filep);
 
-// print exactly size characters
-void print_at_size(FILE *filep, int size);
+// print the word in the buffer according to the limitations imposed by
+// the command line options
+void fold_lines(FILE *filep);
 
-// print a folded line
-int print_line(FILE *filep);
+// initialize the structures that are gonna interface with the data 
+// parsed by argp and with the data that is gonna be used by the 
+// folding algorithm
+void fold_init();
 
-// set things up before starting the program itself
-void initialize(char *filename);
+// Print the word in the buffer until we reach the NULL character at the 
+// end of the buffer, always respecting the maximum line limitation. 
+// If offset is set to something other than 0, it's assumed that the line
+// is offset characters in size already
+void print_at_max(char *buffer, int offset);
+
+int parse_opt(int key, char *arg, struct argp_state *state);

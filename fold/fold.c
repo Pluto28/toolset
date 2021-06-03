@@ -1,196 +1,259 @@
 /*
     This is a reimplementation of the fold tool, don't look at the code if you
     don't want your eyes to bleed
-
-
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <argp.h>
+#include <string.h>
 
 #include "fold.h"
 
-// Fold method and line/word sizes
-// TODO: I don't like this way of keeping track of the data, come back 
-// and look it through
-struct FoldOptions
+const char * argp_program_version  =     "1.0.0";
+const char * argp_program_bug_address =  ":)";
+const char * args_doc =                  "FILE";
+const char * doc = "reimplementation of the fold utility";
+
+static struct argp_option argp_options[] =
 {
-    // Live length of line.
-    int linelength;
-
-    // Standard folding length is 70
-    int maxlength;
-
-    /*  
-        the separator character
-        \n: if the folding type is default
-        ' ': if the folding type is fold at spaces
-    */
-    char separator;
+    {"spaces", 's', 0, 0, "Fold at spaces"},
+    {"width", 'w', "WIDTH", 0, "Use WIDTH columns instead of 80"},
+    {0}
 };
-struct FoldOptions (*foldoptions);
 
-
-int main(int argc, char **argv)
+static struct argp argp =
 {
-    foldoptions = (struct FoldOptions*) malloc(sizeof( struct FoldOptions ));
-    
-    // TODO: parse command line arguments and set the options accordingly
-    // using the argp library
-    foldoptions->linelength = 0;
-    foldoptions->separator = ' ';
-    foldoptions->maxlength = 40;
+    argp_options,
+    parse_opt,
+    "FILE",
+    "fold lines from a file"
+};
 
-    initialize(argv[1]);
+// Fold options as specified by the command line arguments
+struct FoldArgs
+{
+    // Width in columns of the folding length limit, default is 80.
+    unsigned int maxlength;
 
-    free(foldoptions);
+    // If 0, print at column, otherwise print at separator
+    char separator;
+
+    // pointer to array containing the name of the file we 
+    // are gonna read and fold
+    char *filename;
+};
+struct FoldArgs (*foldargs);
+
+// folding data that the folding algorithm is responsible for managing
+struct FoldData
+{
+    // actual size of the buffer
+    unsigned buffer_size;
+
+    // the length of the line we are printing, as
+    // limited by foldargs->maxlength
+    unsigned int line_length;
+};
+struct FoldData (*folddata);
+
+// global buffer used to store one word at time, word separator
+// is usually a space
+char *word_buffer;
+
+// argp parser
+int parse_opt(int key, char *arg, struct argp_state *state)
+{
+    switch (key)
+    {
+    case 's':
+        foldargs->separator = ' ';
+        break;
+    case 'w':
+        printf("%s", arg);
+        int width = atoi(arg);
+        
+        if (width > 0)
+        {
+            foldargs->maxlength = width;
+        }
+        else
+        {
+            fprintf(stderr, "fold: invalid number of columns: ‘%s’", arg);
+            exit(EINVAL);
+        }
+        break;
+    case ARGP_KEY_ARG:
+        foldargs->filename = arg;
+        break;
+    default:
+        return ARGP_ERR_UNKNOWN;
+        break;
+    }
 
     return 0;
 }
 
-void initialize(char *filename)
-{
-    FILE *filep = fopen(filename, "r");
-    if (filep == NULL)
-    {
-        // TODO: add support for using stdin
-        filep = stdin;
-    }
+/*****************************core part of the algorithm**************************
+ *                      FROM HERE ON IS WHERE THE MAGIC HAPPENS                  *
+ * *******************************************************************************/
 
+//TODO: reallocate buffer size by BUFFER_EXPAND if word is bigger than 160 
+// bytes
+int read_word(FILE *filep)
+{
+    //memset(word_buffer, 0, (sizeof(word_buffer) / sizeof(word_buffer[0])));
+    int ch, index;
+    index = 0;
+
+    do
+    {
+        ch = getc(filep);
+        if (ch == EOF) break;
+
+        word_buffer[index] = ch;
+        ++index;
+
+    } while (ch != ' ' && ch != '\n');
+    
+    word_buffer[index] = '\0';
+    ungetc(ch, filep); // for comparison purposes
+
+    return index;   
+}
+
+void fold_lines(FILE *filep)
+{
+    unsigned int word_size, new_size;
+    char separator = foldargs->separator;
 
     while (1)
     {
-        print_line(filep);
 
-    }
+        word_size = read_word(filep);
+        // size line would have after printing word
+        new_size = word_size + (folddata->line_length);
 
-    fclose(filep);
-}
-
-int print_line(FILE *filep)
-{
-    int linesize = count_chars(filep);
-
-    if (linesize > (foldoptions->maxlength))
-    {
-        switch (foldoptions->separator)
+        if (new_size > (foldargs->maxlength))
         {
-            case ' ':
-                print_at_separator(filep, (foldoptions->maxlength));
-                break;
-            case '\0':
-                print_at_size(filep, (foldoptions->maxlength));
-                break;
+            if (separator == ' ')
+            {
+                if (word_size > (foldargs->maxlength))
+                {
+                    // if word is bigger than limit, it will spread through multiple
+                    // lines, so we use the print_at_max function to neatly
+                    // handle the behavior
+                    putchar('\n');
+                    print_at_max(word_buffer, 0);
+                } else {
+                    // if the size of the word is smaller than that of one line, we
+                    // can just print it in a new line and go on with our lives
+                    putchar('\n');
+                    printf("%s", word_buffer);
+
+                    // always remember to update the trackers, the algorithms gets
+                    // angry when you don't
+                    folddata->line_length = word_size;
+                }
+            }
+            else if (separator == 0)
+            {
+                print_at_max(word_buffer, (folddata->line_length));
+            }
+
         }
-    }
-    else 
-    {
-        print_at_size(filep, linesize);
+        else
+        {
+            printf("%s", word_buffer);
+            folddata->line_length += word_size;
+        }
+
+        // if the last character of our word is a newline character, 
+        // then we start a new line and the size of the line is reset
+        // to 0
+        if (word_buffer[word_size - 1] == '\n')
+        {
+            folddata->line_length = 0;
+        }
+
+        if (getc(filep) == EOF) exit(EXIT_SUCCESS);
     }
 }
 
-void print_at_size(FILE *filep, int size)
+
+void print_at_max(char *buffer, int offset)
 {
-    int index, ch;
+    int buffer_offset = 0;
+    int line_offset = offset;   // line offset, reset every new line
 
-    for(index = 0; index != size; ++index)
+    char ch = buffer[buffer_offset];
+
+    for (; ch != '\0'; ++buffer_offset, ++line_offset)
     {
-        ch = getc(filep);
-        if (ch == EOF) exit(0);
+        // start a new line
+        if (line_offset == (foldargs->maxlength))
+        {
+            line_offset = 0;
+            putchar('\n');
+        }
 
+        ch = buffer[buffer_offset];
         putchar(ch);
     }
+
+    // The line offset at which the word ended
+    folddata->line_length = line_offset;
 }
 
-void print_at_separator(FILE *filep, int size)
+
+void fold_init()
 {
-    char *line = (char *) malloc(sizeof(char) * (foldoptions->maxlength));
-    if (line == NULL) exit(12);
+    foldargs = (struct FoldArgs*) malloc(sizeof( struct FoldArgs ));
+    if (!foldargs) perror("fold");
 
-    int ch, index;
+    folddata = (struct FoldData*) malloc(sizeof( struct FoldData ));
+    if (!foldargs) perror("fold");
 
-    // position of last seen separator
-    long sep_pos = 0L;
+    word_buffer = (char *) malloc( sizeof(char) * BUFFER_EXPAND );
+    if (!word_buffer) perror("fold");
 
-    // position at which we started iterating the stream
-    long start_pos = ftell(filep);
+    // set the default values to our structures
+    foldargs->maxlength = 80;
+    foldargs->separator = (char) 0;
+    foldargs->filename = NULL;
 
-    for (index = 0; index != size; ++index)
-    {
-        ch = getc(filep);
-
-        // if character is EOF we just break out of the loop, thus
-        // preserving the state of ch for later use
-        if (ch == EOF) 
-        {   
-            break;
-        }
-        else if (ch == (foldoptions->separator))
-        {
-            sep_pos = ftell(filep);
-        }
-
-        if (ch != '\n')
-        {
-            // we gotta to ignore the newline characters
-            line[index] = ch;
-        }
-        else 
-        {
-            --index;
-        }
-    }
-    
-    if (sep_pos == 0L)
-    {
-        // just print up to size
-        for (index = 0; index != (size - 1); ++index)
-        {
-            putchar(line[index]);
-        }
-    }
-    else
-    {
-        // reset the position of the stream to the last seen separator
-        fseek(filep, sep_pos, SEEK_SET);
-
-        // the range from 0 up to the last seen separator position
-        long last_sep_pos = (sep_pos - start_pos);
-
-        for (index = 0; index != (last_sep_pos); ++index)
-        {
-            putchar(line[index]);
-        }
-    }
-
-    putchar('\n');
-
-    if (ch == EOF)
-    {
-        exit(0);
-    }
-
-    free(line);
+    folddata->buffer_size = 0;
+    folddata->line_length = 0;
 }
 
-int count_chars(FILE *filep)
+
+int main(int argc, char **argv)
 {
-    int linesize, ch;
-    linesize = ch = 0;
+    // initialize our structures
+    fold_init();
 
-    long streampos = ftell(filep);
 
-    do
-    {   
-        ch = getc(filep);
-        ++linesize;
+    // parse command line arguments 
+    argp_parse(&argp, argc, argv, 0, 0, 0);
 
-        if (ch == EOF) break;
+    // if filename was not provided, read from stdin
+    FILE *filep;
+    if ((foldargs->filename) != NULL) 
+    {
+        filep = fopen(foldargs->filename, "r");
+        if (!filep) perror("fold");
+    } else {
+        filep = stdin;
+    }
 
-    } while (ch != '\n');
+    fold_lines(filep);
 
-    fseek(filep, streampos, SEEK_SET);
+    // close file we're reading and deallocate our structs
+    // and our buffer
+    fclose(filep);
+    free(foldargs);
+    free(folddata);
+    free(word_buffer);
 
-    return linesize;
+    return 0;
 }
