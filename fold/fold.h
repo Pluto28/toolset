@@ -4,7 +4,7 @@
 // amount to which expand the buffer
 #define BUFFER_EXPAND 160
 
-// read a word to the global buffer and return it's size
+// read a word to the global buffer and return its size
 int read_word(FILE *filep);
 
 // print the word in the buffer according to the limitations imposed by

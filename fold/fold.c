@@ -48,12 +48,15 @@ struct FoldArgs (*foldargs);
 // folding data that the folding algorithm is responsible for managing
 struct FoldData
 {
+
     // actual size of the buffer
     unsigned buffer_size;
 
     // the length of the line we are printing, as
     // limited by foldargs->maxlength
     unsigned int line_length;
+    char eof_indicator;
+
 };
 struct FoldData (*folddata);
 
@@ -107,7 +110,11 @@ int read_word(FILE *filep)
     do
     {
         ch = getc(filep);
-        if (ch == EOF) break;
+        if (ch == EOF) 
+        {
+            (folddata->eof_indicator) = 1;
+            break;
+        }
 
         word_buffer[index] = ch;
         ++index;
@@ -115,19 +122,17 @@ int read_word(FILE *filep)
     } while (ch != ' ' && ch != '\n');
     
     word_buffer[index] = '\0';
-    ungetc(ch, filep); // for comparison purposes
 
-    return index;   
+    return index;  
 }
 
 void fold_lines(FILE *filep)
 {
-    unsigned int word_size, new_size;
+    int word_size, new_size;
     char separator = foldargs->separator;
 
     while (1)
     {
-
         word_size = read_word(filep);
         // size line would have after printing word
         new_size = word_size + (folddata->line_length);
@@ -173,8 +178,7 @@ void fold_lines(FILE *filep)
         {
             folddata->line_length = 0;
         }
-
-        if (getc(filep) == EOF) exit(EXIT_SUCCESS);
+        if (folddata->eof_indicator) break;
     }
 }
 
@@ -192,7 +196,9 @@ void print_at_max(char *buffer, int offset)
         if (ch != '\n')
         {
             putchar(ch);
-        } else {
+        } 
+        else 
+        {
             --buffer_offset, --line_offset;
         }
 
@@ -204,7 +210,7 @@ void print_at_max(char *buffer, int offset)
         }
     }
 
-    // Because line_offset starts at 
+    // Because line_offset starts at
     folddata->line_length = line_offset;
 }
 
@@ -220,13 +226,14 @@ void fold_init()
     word_buffer = (char *) malloc( sizeof(char) * BUFFER_EXPAND );
     if (!word_buffer) perror("fold");
 
-    // set the default values to our structures
+    // set the default values to our data keeping structures
     foldargs->maxlength = 80;
     foldargs->separator = (char) 0;
     foldargs->filename = NULL;
 
     folddata->buffer_size = 0;
     folddata->line_length = 0;
+    folddata->eof_indicator = 0;
 }
 
 
