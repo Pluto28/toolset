@@ -102,23 +102,25 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 
 //TODO: reallocate buffer size by BUFFER_EXPAND if word is bigger than 160 
 // bytes. Read an entire line, store it in a buffer and just read another line
-// when needed, it should be faster
+// when needed (it should be faster)
 int read_word(FILE *filep)
 {
     int ch, index;
     index = 0;
 
-    ch = getc(filep);
-    if (ch == EOF) {return 0;}
-    ungetc(ch, filep);
-
+    // when there is a newline just before the eof can be identified, this
+    // function is first called to read the word and the once more to 
+    // set the eof for the file stream
     do
     {
         ch = getc(filep);
+        
+        // if ch is EOF, the eof indicator for the file is set and we can 
+        // just quit the loop
+        if (ch == EOF) break;
 
         word_buffer[index] = ch;
         ++index;
-
     } while (ch != ' ' && ch != '\n');
     
     word_buffer[index] = '\0';
@@ -134,6 +136,7 @@ void fold_lines(FILE *filep)
     while (1)
     {
         word_size = read_word(filep);
+
         // size line would have after printing word
         new_size = word_size + (folddata->line_length);
 
@@ -159,21 +162,18 @@ void fold_lines(FILE *filep)
                     folddata->line_length = word_size;
                 }
             }
-            else if (!separator)
+            else if (separator == 0)
             {
                 print_at_max(word_buffer, (folddata->line_length));
             }
 
         }
-        else
+        else 
         {
             printf("%s", word_buffer);
             folddata->line_length += word_size;
         }
 
-        // if the last character of our word is a newline character, 
-        // then we start a new line and the size of the line is reset
-        // to 0
 
         if (feof(filep)) 
         {
@@ -197,16 +197,16 @@ void print_at_max(char *buffer, int offset)
 
     for (; ch != '\0'; ++buffer_offset)
     {
+
         if (line_offset == (foldargs->maxlength))
         {
             line_offset = 0;
             putchar('\n');
         }
-        line_offset++;
+        ++line_offset;
 
         ch = buffer[buffer_offset];
         putchar(ch);
-
     }
 
     // Because line_offset starts at
@@ -237,7 +237,6 @@ void fold_init()
 
 int main(int argc, char **argv)
 {
-    // initialize our structures
     fold_init();
 
 
@@ -249,15 +248,17 @@ int main(int argc, char **argv)
     if ((foldargs->filename) != NULL) 
     {
         filep = fopen(foldargs->filename, "r");
-        if (!filep) perror("fold");
+        if (!filep) 
+        {
+            perror("fold"); 
+            exit(ENOENT);
+        }
     } else {
         filep = stdin;
     }
     
     fold_lines(filep);
 
-    // close file we're reading and deallocate our structs
-    // and our buffer
     fclose(filep);
     free(foldargs);
     free(folddata);
