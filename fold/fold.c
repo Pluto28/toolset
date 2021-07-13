@@ -65,13 +65,15 @@ char *word_buffer;
 // argp parser
 int parse_opt(int key, char *arg, struct argp_state *state)
 {
+    int width;
+
     switch (key)
     {
     case 's':
         foldargs->separator = ' ';
         break;
     case 'w':
-        int width = atoi(arg);
+        width = atoi(arg);
         
         if (width > 0)
         {
