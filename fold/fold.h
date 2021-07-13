@@ -22,4 +22,6 @@ void fold_init();
 // is offset characters in size already
 void print_at_max(char *buffer, int offset);
 
+
+
 int parse_opt(int key, char *arg, struct argp_state *state);
